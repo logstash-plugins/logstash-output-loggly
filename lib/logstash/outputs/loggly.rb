@@ -39,7 +39,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   #                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   #                                           \---------->   key   <-------------/
   #
-  # You can use %{foo} field lookups here if you need to pull the api key from
+  # You can use `%{foo}` field lookups here if you need to pull the api key from
   # the event. This is mainly aimed at multitenant hosting providers who want
   # to offer shipping a customer's logs to that customer's loggly account.
   config :key, :validate => :string, :required => true
