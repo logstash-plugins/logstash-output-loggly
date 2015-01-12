@@ -34,11 +34,12 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   config :host, :validate => :string, :default => "logs.loggly.com"
 
   # The loggly http input key to send to.
-  # This is usually visible in the Loggly 'Inputs' page as something like this
+  # This is usually visible in the Loggly 'Inputs' page as something like this:
+  # ....
   #     https://logs.hoover.loggly.net/inputs/abcdef12-3456-7890-abcd-ef0123456789
   #                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   #                                           \---------->   key   <-------------/
-  #
+  # ....
   # You can use `%{foo}` field lookups here if you need to pull the api key from
   # the event. This is mainly aimed at multitenant hosting providers who want
   # to offer shipping a customer's logs to that customer's loggly account.
