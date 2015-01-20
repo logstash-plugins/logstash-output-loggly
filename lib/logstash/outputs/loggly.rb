@@ -27,7 +27,6 @@ end
 # and 'json logging' enabled.
 class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   config_name "loggly"
-  milestone 2
 
   # The hostname to send logs to. This should target the loggly http input
   # server which is usually "logs.loggly.com"
