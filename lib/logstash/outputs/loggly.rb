@@ -46,11 +46,15 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
   # Should the log action be sent over https instead of plain http
   config :proto, :validate => :string, :default => "http"
- 
+
   # Loggly Tag
   # Tag helps you to find your logs in the Loggly dashboard easily
-  # You can make a search in Loggly using tag as "tag:logstash-contrib" 
-  # or the tag set by you in the config file
+  # You can make a search in Loggly using tag as "tag:logstash-contrib"
+  # or the tag set by you in the config file.
+  #
+  # You can use %{somefield} to allow for custom tag values.
+  # Helpful for leveraging Loggly source groups.
+  # https://www.loggly.com/docs/source-groups/
   config :tag, :validate => :string, :default => "logstash"
 
   # Proxy Host
@@ -81,7 +85,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     end
 
     # Send the event over http.
-    url = URI.parse("#{@proto}://#{@host}/inputs/#{event.sprintf(@key)}/tag/#{@tag}")
+    url = URI.parse("#{@proto}://#{@host}/inputs/#{event.sprintf(@key)}/tag/#{event.sprintf(@tag)}")
     @logger.info("Loggly URL", :url => url)
     http = Net::HTTP::Proxy(@proxy_host, @proxy_port, @proxy_user, @proxy_password.value).new(url.host, url.port)
     if url.scheme == 'https'
