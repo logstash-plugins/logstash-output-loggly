@@ -84,21 +84,47 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       return
     end
 
-    # Send the event over http.
-    url = URI.parse("#{@proto}://#{@host}/inputs/#{event.sprintf(@key)}/tag/#{event.sprintf(@tag)}")
+    key = event.sprintf(@key)
+    tag = event.sprintf(@tag)
+
+    # For those cases where %{somefield} doesn't exist
+    # we should ship logs with the default tag value.
+    tag = 'logstash' if /^%{\w+}/.match(tag)
+ 
+    # Send event
+    send_event("#{@proto}://#{@host}/inputs/#{key}/tag/#{tag}", format_message(event))
+  end # def receive
+
+  public
+  def format_message(event)
+    event.to_json
+  end
+
+  private
+  def send_event(url, message)
+    url = URI.parse(url)
     @logger.info("Loggly URL", :url => url)
-    http = Net::HTTP::Proxy(@proxy_host, @proxy_port, @proxy_user, @proxy_password.value).new(url.host, url.port)
+
+    http = Net::HTTP::Proxy(@proxy_host,
+                            @proxy_port,
+                            @proxy_user,
+                            @proxy_password.value).new(url.host, url.port)
+
     if url.scheme == 'https'
       http.use_ssl = true
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     end
+
+    # post message
     request = Net::HTTP::Post.new(url.path)
-    request.body = event.to_json
+    request.body = message
     response = http.request(request)
+
     if response.is_a?(Net::HTTPSuccess)
-      @logger.info("Event send to Loggly OK!")
+     @logger.info("Event send to Loggly OK!")
     else
-      @logger.warn("HTTP error", :error => response.error!)
+     @logger.warn("HTTP error", :error => response.error!)
     end
-  end # def receive
+  end # def send_event
+ 
 end # class LogStash::Outputs::Loggly
