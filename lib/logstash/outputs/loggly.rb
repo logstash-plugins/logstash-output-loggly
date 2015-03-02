@@ -122,9 +122,9 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     response = http.request(request)
 
     if response.is_a?(Net::HTTPSuccess)
-     @logger.info("Event send to Loggly OK!")
+      @logger.info("Event send to Loggly OK!")
     else
-     @logger.warn("HTTP error", :error => response.error!)
+      @logger.warn("HTTP error", :error => response.error!)
     end
   end # def send_event
  
