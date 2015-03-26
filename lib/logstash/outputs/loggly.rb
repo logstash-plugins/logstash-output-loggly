@@ -77,28 +77,34 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
   public
   def receive(event)
+    begin
     return unless output?(event)
+      if event == LogStash::SHUTDOWN
+	finished
+	return
+      end
 
-    if event == LogStash::SHUTDOWN
-      finished
-      return
-    end
+      # Send the event over http.
+      url = URI.parse("#{@proto}://#{@host}/inputs/#{event.sprintf(@key)}/tag/#{event.sprintf(@tag)}")
+      @logger.info("Loggly URL", :url => url)
+      http = Net::HTTP::Proxy(@proxy_host, @proxy_port, @proxy_user, @proxy_password.value).new(url.host, url.port)
+      if url.scheme == 'https'
+        http.use_ssl = true
+	http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
 
-    # Send the event over http.
-    url = URI.parse("#{@proto}://#{@host}/inputs/#{event.sprintf(@key)}/tag/#{event.sprintf(@tag)}")
-    @logger.info("Loggly URL", :url => url)
-    http = Net::HTTP::Proxy(@proxy_host, @proxy_port, @proxy_user, @proxy_password.value).new(url.host, url.port)
-    if url.scheme == 'https'
-      http.use_ssl = true
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-    end
-    request = Net::HTTP::Post.new(url.path)
-    request.body = event.to_json
-    response = http.request(request)
-    if response.is_a?(Net::HTTPSuccess)
-      @logger.info("Event send to Loggly OK!")
-    else
-      @logger.warn("HTTP error", :error => response.error!)
-    end
+      request = Net::HTTP::Post.new(url.path)
+      request.body = event.to_json
+      response = http.request(request)
+
+      if response.is_a?(Net::HTTPSuccess)
+        @logger.info("Event send to Loggly OK!")
+      else
+        @logger.warn("HTTP error", :error => response.error!)
+      end
+    rescue Exception => e
+      puts e.message
+      puts e.backtrace.inspect
+    end # rescue
   end # def receive
 end # class LogStash::Outputs::Loggly
