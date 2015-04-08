@@ -49,6 +49,16 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # Should the log action be sent over https instead of plain http
   config :proto, :validate => :string, :default => "http"
 
+  # Loggly Tag
+  # Tag helps you to find your logs in the Loggly dashboard easily
+  # You can make a search in Loggly using tag as "tag:logstash-contrib"
+  # or the tag set by you in the config file.
+  #
+  # You can use %{somefield} to allow for custom tag values.
+  # Helpful for leveraging Loggly source groups.
+  # https://www.loggly.com/docs/source-groups/
+  config :tag, :validate => :string, :default => "logstash"
+
   # Proxy Host
   config :proxy_host, :validate => :string
 
@@ -76,21 +86,48 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       return
     end
 
-    # Send the event over http.
-    url = URI.parse("#{@proto}://#{@host}/inputs/#{event.sprintf(@key)}")
+    key = event.sprintf(@key)
+    tag = event.sprintf(@tag)
+
+    # For those cases where %{somefield} doesn't exist
+    # we should ship logs with the default tag value.
+    tag = 'logstash' if /^%{\w+}/.match(tag)
+ 
+    # Send event
+    send_event("#{@proto}://#{@host}/inputs/#{key}/tag/#{tag}", format_message(event))
+  end # def receive
+
+  public
+  def format_message(event)
+    event.to_json
+  end
+
+  private
+  def send_event(url, message)
+    url = URI.parse(url)
     @logger.info("Loggly URL", :url => url)
-    http = Net::HTTP::Proxy(@proxy_host, @proxy_port, @proxy_user, @proxy_password.value).new(url.host, url.port)
+
+    http = Net::HTTP::Proxy(@proxy_host,
+                            @proxy_port,
+                            @proxy_user,
+                            @proxy_password.value).new(url.host, url.port)
+
     if url.scheme == 'https'
       http.use_ssl = true
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     end
+
+    # post message
     request = Net::HTTP::Post.new(url.path)
-    request.body = event.to_json
+    request.body = message
     response = http.request(request)
+
     if response.is_a?(Net::HTTPSuccess)
       @logger.info("Event send to Loggly OK!")
     else
       @logger.warn("HTTP error", :error => response.error!)
     end
-  end # def receive
+  end # def send_event
+ 
 end # class LogStash::Outputs::Loggly
+
