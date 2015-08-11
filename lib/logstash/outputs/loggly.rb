@@ -139,16 +139,16 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
         if response.is_a?(Net::HTTPSuccess)
           @logger.info("Event send to Loggly OK!")
           break
-	elsif response.code == "403"
+    elsif response.code == "403"
            @logger.warn("Invalid Customer Token")
            break
         elsif response.code == "404"
            @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
            break
-	elsif response.code == "500"
-	   @logger.warn("Internal Server Error")
-	elsif response.code == "504"
-	   @logger.warn("Gateway Timeout")
+    elsif response.code == "500"
+       @logger.warn("Internal Server Error")
+    elsif response.code == "504"
+       @logger.warn("Gateway Timeout")
         else
           @logger.warn("HTTP error")
         end
