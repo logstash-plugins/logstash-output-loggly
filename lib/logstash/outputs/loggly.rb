@@ -27,7 +27,6 @@ end
 # and 'json logging' enabled.
 class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   config_name "loggly"
-  milestone 2
 
   # The hostname to send logs to. This should target the loggly http input
   # server which is usually "logs-01.loggly.com" (Gen2 account).
@@ -132,35 +131,34 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     end
 
     while totalRetries <= @retry_count
-      begin
-        
-        # post message
-        response = http.request(request)
-        if response.is_a?(Net::HTTPSuccess)
-          @logger.info("Event send to Loggly OK!")
-          break
-    elsif response.code == "403"
-           @logger.warn("Invalid Customer Token")
-           break
-        elsif response.code == "404"
-           @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
-           break
-    elsif response.code == "500"
-       @logger.warn("Internal Server Error")
-    elsif response.code == "504"
-       @logger.warn("Gateway Timeout")
-        else
-          @logger.warn("HTTP error")
-        end
-      rescue Exception => e
-        @logger.error(e.backtrace.inspect)
-      end # rescue
-     
-      if totalRetries <= @retry_count
-        puts "Waiting for five seconds before retry..."
-        sleep(5)
+    begin
+      # post message
+      response = http.request(request)
+      if response.is_a?(Net::HTTPSuccess)
+        @logger.info("Event send to Loggly OK!")
+        break
+      elsif response.code == "403"
+        @logger.warn("Invalid Customer Token")
+        break
+      elsif response.code == "404"
+        @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
+        break
+      elsif response.code == "500"
+        @logger.warn("Internal Server Error")
+      elsif response.code == "504"
+        @logger.warn("Gateway Timeout")
+      else
+        @logger.warn("HTTP error")
       end
-      totalRetries = totalRetries + 1
+    rescue Exception => e
+        @logger.error(e.backtrace.inspect)
+    end # rescue
+     
+    if totalRetries <= @retry_count
+      puts "Waiting for five seconds before retry..."
+      sleep(5)
+    end
+    totalRetries = totalRetries + 1
     end #loop
   end # def send_event
  end # class LogStash::Outputs::Loggly
