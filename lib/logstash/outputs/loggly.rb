@@ -62,6 +62,9 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # Retry count
   config :retry_count, :validate => :number, :default => 5
 
+  # Can Retry
+  config :can_retry, :validate => :boolean, :default => false
+
   # Proxy Host
   config :proxy_host, :validate => :string
 
@@ -122,43 +125,48 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
     request = Net::HTTP::Post.new(url.path)
     request.body = message
-    
-    totalRetries = 1
-    
-    #try posting at-least one time
-    if @retry_count <= 0
+
+    # Variable for count total retries
+    totalRetries = 0
+
+    #try posting once when can_retry is false
+    if @can_retry == false
       @retry_count = 1
     end
 
-    while totalRetries <= @retry_count
+    
+    while totalRetries < @retry_count
     begin
-      # post message
-      response = http.request(request)
-      if response.is_a?(Net::HTTPSuccess)
-        @logger.info("Event send to Loggly OK!")
-        break
-      elsif response.code == "403"
-        @logger.warn("Invalid Customer Token")
-        break
-      elsif response.code == "404"
-        @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
-        break
-      elsif response.code == "500"
-        @logger.warn("Internal Server Error")
-      elsif response.code == "504"
-        @logger.warn("Gateway Timeout")
-      else
-        @logger.warn("HTTP error")
-      end
+
+      response = http.request(request)	
+      case response.code
+	    when "200"					# HTTPSuccess :Code 2xx
+	      puts "Event send to Loggly"
+	    when "403"					# HTTPForbidden :Code 403
+	      @logger.warn("User does not have privileges to execute the action.")
+	    when "404"					# HTTPNotFound :Code 404
+	      @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
+	    when "500"					# HTTPInternalServerError :Code 500
+	      @logger.warn("Internal Server Error")
+	    when "504"					# HTTPGatewayTimeOut :Code 504
+	      @logger.warn("Gateway Time Out")
+	    else
+	      @logger.error("Error! response code is :"+response.code)
+      end # case
+
+    if ["200","403","404"].include?(response.code)	# break the retries loop for the specified response code
+      break
+    end
+
     rescue Exception => e
         @logger.error(e.backtrace.inspect)
     end # rescue
      
-    if totalRetries <= @retry_count
+    if totalRetries < @retry_count && totalRetries > 0
       puts "Waiting for five seconds before retry..."
       sleep(5)
     end
     totalRetries = totalRetries + 1
     end #loop
   end # def send_event
- end # class LogStash::Outputs::Loggly
+end # class LogStash::Outputs::Loggly
