@@ -81,10 +81,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   def receive(event)
     return unless output?(event)
 
-    if event == LogStash::SHUTDOWN
-      finished
-      return
-    end
+    return if event == LogStash::SHUTDOWN
 
     key = event.sprintf(@key)
     tag = event.sprintf(@tag)
@@ -92,7 +89,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     # For those cases where %{somefield} doesn't exist
     # we should ship logs with the default tag value.
     tag = 'logstash' if /^%{\w+}/.match(tag)
- 
+
     # Send event
     send_event("#{@proto}://#{@host}/inputs/#{key}/tag/#{tag}", format_message(event))
   end # def receive
@@ -128,6 +125,6 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       @logger.warn("HTTP error", :error => response.error!)
     end
   end # def send_event
- 
+
 end # class LogStash::Outputs::Loggly
 
