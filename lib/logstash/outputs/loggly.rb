@@ -83,13 +83,13 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
 
   # HTTP constants
-  http_success = "200"
-  http_forbidden = "403"
-  http_not_found = "404"
-  http_internal_server_error = "500"
-  http_gateway_timeout = "504"
+  HTTP_SUCCESS = "200"
+  HTTP_FOBIDDEN = "403"
+  HTTP_NOT_FOUND = "404"
+  HTTP_INTERNAL_SERVER_ERROR = "500"
+  HTTP_GATEWAY_TIMEOUT = "504"
 
-  public
+public
   def register
     # nothing to do
   end
@@ -150,21 +150,21 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     begin
       response = http.request(request)	
       case response.code
-	    when http_success				# http_success :Code 2xx
+	    when HTTP_SUCCESS					# HTTP_SUCCESS :Code 2xx
 	      puts "Event send to Loggly"
-	    when http_forbidden					# http_forbidden :Code 403
+	    when HTTP_FOBIDDEN					# HTTP_FOBIDDEN :Code 403
 	      @logger.warn("User does not have privileges to execute the action.")
-	    when http_not_found					# http_not_found :Code 404
+	    when HTTP_NOT_FOUND					# HTTP_NOT_FOUND :Code 404
 	      @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
-	    when http_internal_server_error			# http_internal_server_error :Code 500
+	    when HTTP_INTERNAL_SERVER_ERROR			# HTTP_INTERNAL_SERVER_ERROR :Code 500
 	      @logger.warn("Internal Server Error")
-	    when http_gateway_timeout					# http_gateway_timeout :Code 504
+	    when HTTP_GATEWAY_TIMEOUT				# HTTP_GATEWAY_TIMEOUT :Code 504
 	      @logger.warn("Gateway Time Out")
 	    else
 	      @logger.error("Unexpected response code", :code => response.code)
       end # case
 
-    if [http_success,http_forbidden,http_not_found].include?(response.code)	# break the retries loop for the specified response code
+    if [HTTP_SUCCESS,HTTP_FOBIDDEN,HTTP_NOT_FOUND].include?(response.code)	# break the retries loop for the specified response code
       break
     end
     rescue StandardError => e
