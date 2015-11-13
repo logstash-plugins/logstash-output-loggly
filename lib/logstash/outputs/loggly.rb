@@ -84,7 +84,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
   # HTTP constants
   HTTP_SUCCESS = "200"
-  HTTP_FOBIDDEN = "403"
+  HTTP_FORBIDDEN = "403"
   HTTP_NOT_FOUND = "404"
   HTTP_INTERNAL_SERVER_ERROR = "500"
   HTTP_GATEWAY_TIMEOUT = "504"
@@ -150,31 +150,42 @@ public
     begin
       response = http.request(request)	
       case response.code
-	    when HTTP_SUCCESS					# HTTP_SUCCESS :Code 2xx
+	  
+	    # HTTP_SUCCESS :Code 2xx
+	    when HTTP_SUCCESS					
 	      puts "Event send to Loggly"
-	    when HTTP_FOBIDDEN					# HTTP_FOBIDDEN :Code 403
+		  
+		# HTTP_FORBIDDEN :Code 403
+	    when HTTP_FORBIDDEN					
 	      @logger.warn("User does not have privileges to execute the action.")
-	    when HTTP_NOT_FOUND					# HTTP_NOT_FOUND :Code 404
+		
+		# HTTP_NOT_FOUND :Code 404
+	    when HTTP_NOT_FOUND					
 	      @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
-	    when HTTP_INTERNAL_SERVER_ERROR			# HTTP_INTERNAL_SERVER_ERROR :Code 500
+	    
+		# HTTP_INTERNAL_SERVER_ERROR :Code 500
+		when HTTP_INTERNAL_SERVER_ERROR			
 	      @logger.warn("Internal Server Error")
-	    when HTTP_GATEWAY_TIMEOUT				# HTTP_GATEWAY_TIMEOUT :Code 504
+		
+		# HTTP_GATEWAY_TIMEOUT :Code 504
+	    when HTTP_GATEWAY_TIMEOUT				
 	      @logger.warn("Gateway Time Out")
 	    else
 	      @logger.error("Unexpected response code", :code => response.code)
       end # case
 
-    if [HTTP_SUCCESS,HTTP_FOBIDDEN,HTTP_NOT_FOUND].include?(response.code)	# break the retries loop for the specified response code
-      break
-    end
-    rescue StandardError => e
-      @logger.error("An unexpected error occurred", :exception => e.class.name, :error => e.to_s, :backtrace => e.backtrace)
-    end # rescue
+      if [HTTP_SUCCESS,HTTP_FORBIDDEN,HTTP_NOT_FOUND].include?(response.code)	# break the retries loop for the specified response code
+        break
+      end
+	  rescue StandardError => e
+        @logger.error("An unexpected error occurred", :exception => e.class.name, :error => e.to_s, :backtrace => e.backtrace)
+      end # rescue
      
-    if totalRetries < @retry_count && totalRetries > 0
-      puts "Waiting for five seconds before retry..."
-      sleep(5)
-    end
+      if totalRetries < @retry_count && totalRetries > 0
+        puts "Waiting for five seconds before retry..."
+        sleep(5)
+      end
+	  
       totalRetries = totalRetries + 1
     end #loop
   end # def send_event
