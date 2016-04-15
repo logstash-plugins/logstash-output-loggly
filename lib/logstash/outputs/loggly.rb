@@ -2,6 +2,7 @@
 require "logstash/outputs/base"
 require "logstash/namespace"
 require "timeout"
+require "stud/buffer"
 require "uri"
 # TODO(sissel): Move to something that performs better than net/http
 require "net/http"
@@ -27,6 +28,8 @@ end
 # To use this, you'll need to use a Loggly input with type 'http'
 # and 'json logging' enabled.
 class LogStash::Outputs::Loggly < LogStash::Outputs::Base
+  include Stud::Buffer
+
   config_name "loggly"
 
   # The hostname to send logs to. This should target the loggly http input
@@ -56,7 +59,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # https://www.loggly.com/docs/source-groups/
   config :tag, :validate => :string, :default => "logstash"
 
-  # Retry count. 
+  # Retry count.
   # It may be possible that the request may timeout due to slow Internet connection
   # if such condition appears, retry_count helps in retrying request for multiple times
   # It will try to submit request until retry_count and then halt
@@ -78,6 +81,23 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # Proxy Password
   config :proxy_password, :validate => :password, :default => ""
 
+  # This plugin uses the bulk index api for improved indexing performance.
+  # To make efficient bulk api calls, we will buffer a certain number of
+  # events before flushing that out to Loggly. This setting
+  # controls how many events will be buffered before sending a batch
+  # of events.
+  config :flush_size, :validate => :number, :default => 100
+
+  # The amount of time since last flush before a flush is forced.
+  #
+  # This setting helps ensure slow event rates don't get stuck in Logstash.
+  # For example, if your `flush_size` is 100, and you have received 10 events,
+  # and it has been more than `idle_flush_time` seconds since the last flush,
+  # logstash will flush those 10 events automatically.
+  #
+  # This helps keep both fast and slow log streams moving along in
+  # near-real-time.
+  config :idle_flush_time, :validate => :number, :default => 1
 
   # HTTP constants
   HTTP_SUCCESS = "200"
@@ -88,11 +108,16 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
   public
   def register
-    # nothing to do
+    buffer_initialize(
+      :max_items => @flush_size,
+      :max_interval => @idle_flush_time,
+      :logger => @logger
+    )
   end
 
   public
   def receive(event)
+    return unless output?(event)
     key = event.sprintf(@key)
     tag = event.sprintf(@tag)
 
@@ -100,14 +125,25 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     # we should ship logs with the default tag value.
     tag = 'logstash' if /^%{\w+}/.match(tag)
 
-    # Send event
-    send_event("#{@proto}://#{@host}/inputs/#{key}/tag/#{tag}", format_message(event))
+    buffer_receive([event, key, tag])
   end # def receive
 
   public
   def format_message(event)
     event.to_json
   end
+
+  def flush(events, close=false)
+    # Avoid creating a new string for newline every time
+    newline = "\n".freeze
+
+    body = events.collect do |event, key, tag|
+      [ format_message(event), newline ]
+    end.flatten
+
+    send_event("#{@proto}://#{@host}/bulk/#{@key}/tag/#{@tag}", body.join(""))
+  end # def receive_bulk
+
 
   private
   def send_event(url, message)
@@ -141,32 +177,33 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
         response = http.request(request)
         case response.code
 
-          # HTTP_SUCCESS :Code 2xx
+        # HTTP_SUCCESS :Code 2xx
         when HTTP_SUCCESS
           @logger.debug("Event sent to Loggly")
 
-          # HTTP_FORBIDDEN :Code 403
+        # HTTP_FORBIDDEN :Code 403
         when HTTP_FORBIDDEN
           @logger.warn("User does not have privileges to execute the action.")
 
-          # HTTP_NOT_FOUND :Code 404
+        # HTTP_NOT_FOUND :Code 404
         when HTTP_NOT_FOUND
           @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
 
-          # HTTP_INTERNAL_SERVER_ERROR :Code 500
+        # HTTP_INTERNAL_SERVER_ERROR :Code 500
         when HTTP_INTERNAL_SERVER_ERROR
           @logger.warn("Internal Server Error")
 
-          # HTTP_GATEWAY_TIMEOUT :Code 504
+        # HTTP_GATEWAY_TIMEOUT :Code 504
         when HTTP_GATEWAY_TIMEOUT
           @logger.warn("Gateway Time Out")
         else
           @logger.error("Unexpected response code", :code => response.code)
         end # case
 
-        if [HTTP_SUCCESS,HTTP_FORBIDDEN,HTTP_NOT_FOUND].include?(response.code)	# break the retries loop for the specified response code
+        if [HTTP_SUCCESS,HTTP_FORBIDDEN,HTTP_NOT_FOUND].include?(response.code)   # break the retries loop for the specified response code
           break
         end
+
       rescue StandardError => e
         @logger.error("An unexpected error occurred", :exception => e.class.name, :error => e.to_s, :backtrace => e.backtrace)
       end # rescue
@@ -179,4 +216,9 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       totalRetries = totalRetries + 1
     end #loop
   end # def send_event
+
+  def close
+    buffer_flush(:final => true)
+  end # def close
+
 end # class LogStash::Outputs::Loggly
