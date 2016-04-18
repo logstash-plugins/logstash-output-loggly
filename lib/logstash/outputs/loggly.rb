@@ -136,7 +136,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     event.to_json
   end
 
-  def flush(events, teardown=false)
+  def flush(events, close=false)
     # Avoid creating a new string for newline every time
     newline = "\n".freeze
 
@@ -220,8 +220,8 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     end #loop
   end # def send_event
 
-  def teardown
+  def close
     buffer_flush(:final => true)
-  end # def teardown
+  end # def close
 
 end # class LogStash::Outputs::Loggly
