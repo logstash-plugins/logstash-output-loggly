@@ -59,7 +59,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # https://www.loggly.com/docs/source-groups/
   config :tag, :validate => :string, :default => "logstash"
 
-  # Retry count. 
+  # Retry count.
   # It may be possible that the request may timeout due to slow Internet connection
   # if such condition appears, retry_count helps in retrying request for multiple times
   # It will try to submit request until retry_count and then halt
@@ -80,7 +80,6 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
   # Proxy Password
   config :proxy_password, :validate => :password, :default => ""
-
 
   # HTTP constants
   HTTP_SUCCESS = "200"
@@ -103,6 +102,9 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     # we should ship logs with the default tag value.
     tag = 'logstash' if /^%{\w+}/.match(tag)
 
+    # Transform @timestamp to Loggly's JSON timestamp field
+    transform_ts(event)
+
     # Send event
     send_event("#{@proto}://#{@host}/inputs/#{key}/tag/#{tag}", format_message(event))
   end # def receive
@@ -113,6 +115,17 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   end
 
   private
+  def transform_ts(event)
+    # Transform default event @timestamp field to a Loggly JSON timestamp field.
+    # See https://www.loggly.com/docs/automated-parsing/#json
+
+    if event.include?("@timestamp")
+        timestamp = event.remove("@timestamp")
+        # An existing timestamp field sould be left untouched
+        event["timestamp"] = timestamp unless event.include?("timestamp")
+    end
+  end
+
   def send_event(url, message)
     url = URI.parse(url)
     @logger.info("Loggly URL", :url => url)
@@ -138,30 +151,30 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       @retry_count = 1
     end
 
-    
+
     @retry_count.times do
     begin
-      response = http.request(request)	
+      response = http.request(request)
       case response.code
-	  
+
 	    # HTTP_SUCCESS :Code 2xx
-	    when HTTP_SUCCESS					
+	    when HTTP_SUCCESS
 	      puts "Event send to Loggly"
-		  
+
 		# HTTP_FORBIDDEN :Code 403
-	    when HTTP_FORBIDDEN					
+	    when HTTP_FORBIDDEN
 	      @logger.warn("User does not have privileges to execute the action.")
-		
+
 		# HTTP_NOT_FOUND :Code 404
-	    when HTTP_NOT_FOUND					
+	    when HTTP_NOT_FOUND
 	      @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
-	    
+
 		# HTTP_INTERNAL_SERVER_ERROR :Code 500
-		when HTTP_INTERNAL_SERVER_ERROR			
+		when HTTP_INTERNAL_SERVER_ERROR
 	      @logger.warn("Internal Server Error")
-		
+
 		# HTTP_GATEWAY_TIMEOUT :Code 504
-	    when HTTP_GATEWAY_TIMEOUT				
+	    when HTTP_GATEWAY_TIMEOUT
 	      @logger.warn("Gateway Time Out")
 	    else
 	      @logger.error("Unexpected response code", :code => response.code)
@@ -173,12 +186,12 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 	  rescue StandardError => e
         @logger.error("An unexpected error occurred", :exception => e.class.name, :error => e.to_s, :backtrace => e.backtrace)
       end # rescue
-     
+
       if totalRetries < @retry_count && totalRetries > 0
         puts "Waiting for five seconds before retry..."
         sleep(5)
       end
-	  
+
       totalRetries = totalRetries + 1
     end #loop
   end # def send_event
