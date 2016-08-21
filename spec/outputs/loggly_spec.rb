@@ -15,11 +15,12 @@ describe 'outputs/loggly' do
   end
 
   let(:loggly_formatted_event) do
-      # Loggly output plugin replaces the default @timestamp field
-      #  with Loggly's expected timestamp field (i.e timestamp).
-      timestamp = event.remove("@timestamp")
-      event["timestamp"] = timestamp
-      event
+    # Loggly output plugin replaces the default @timestamp field
+    #  with Loggly's expected timestamp field (i.e timestamp).
+    formatted_event = event.clone
+    timestamp = formatted_event.remove("@timestamp")
+    formatted_event["timestamp"] = timestamp
+    formatted_event
   end
 
   context 'when initializing' do
