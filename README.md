@@ -1,3 +1,7 @@
+## Maintainers Needed
+
+This plugin needs maintainers, please comment on https://github.com/logstash-plugins/logstash-output-loggly/issues/20 if you would like to maintain this plugin. Thanks!
+
 # Logstash Plugin
 
 [![Travis Build Status](https://travis-ci.org/logstash-plugins/logstash-output-loggly.svg)](https://travis-ci.org/logstash-plugins/logstash-output-loggly)
