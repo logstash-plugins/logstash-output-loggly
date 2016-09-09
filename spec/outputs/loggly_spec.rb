@@ -30,7 +30,7 @@ describe 'outputs/loggly' do
   context 'when outputting messages' do
     it 'should support field interpolation on key' do
       # add a custom key value for Loggly config
-      event['token'] = 'xxxxxxx1234567'
+      event.set('token', 'xxxxxxx1234567')
       config['key'] = '%{token}'
 
       output = LogStash::Outputs::Loggly.new(config)
