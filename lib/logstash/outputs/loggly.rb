@@ -89,27 +89,20 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   HTTP_INTERNAL_SERVER_ERROR = "500"
   HTTP_GATEWAY_TIMEOUT = "504"
 
-public
+  public
   def register
     # nothing to do
   end
 
   public
   def receive(event)
-    
-
-    if event == LogStash::SHUTDOWN
-      finished
-      return
-    end
-
     key = event.sprintf(@key)
     tag = event.sprintf(@tag)
 
     # For those cases where %{somefield} doesn't exist
     # we should ship logs with the default tag value.
     tag = 'logstash' if /^%{\w+}/.match(tag)
- 
+
     # Send event
     send_event("#{@proto}://#{@host}/inputs/#{key}/tag/#{tag}", format_message(event))
   end # def receive
