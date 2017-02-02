@@ -19,7 +19,7 @@ describe 'outputs/loggly' do
     #  with Loggly's expected timestamp field (i.e timestamp).
     formatted_event = event.clone
     timestamp = formatted_event.remove("@timestamp")
-    formatted_event["timestamp"] = timestamp
+    formatted_event.set("timestamp", timestamp)
     formatted_event
   end
 
@@ -93,7 +93,7 @@ describe 'outputs/loggly' do
       allow(output).to receive(:send_event).with('http://logs-01.loggly.com/inputs/abcdef123456/tag/logstash',
                                                  loggly_formatted_event.to_json)
 
-      event["timestamp"] = event["@timestamp"]
+      event.set("timestamp", event.get("@timestamp"))
       output.receive(event)
     end
   end
