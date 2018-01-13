@@ -95,40 +95,38 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   end
 
   public
-  def receive(event)
-    key = event.sprintf(@key)
-    tag = event.sprintf(@tag)
-
-    # For those cases where %{somefield} doesn't exist
-    # we should ship logs with the default tag value.
-    tag = 'logstash' if /^%{\w+}/.match(tag)
-
-    # Send event
-    send_event("#{@proto}://#{@host}/inputs/#{key}/tag/#{tag}", format_message(event))
-  end # def receive
-
+  
+  def multi_receive(events)
+    @logger.info("Creating HTTP connection...")
+    Net::HTTP.start(@host, @port, :use_ssl => (@proto == 'https'), :verify_mode => OpenSSL::SSL::VERIFY_NONE) do |http|
+      # Send event
+      events.each do |event|
+        send_event(event, http)
+      end
+    end
+    @logger.info("Closing HTTP connection...")
+  end
+  
   public
   def format_message(event)
     event.to_json
   end
 
   private
-  def send_event(url, message)
-    url = URI.parse(url)
+
+  def send_event(event, http)
+    key = event.sprintf(@key)
+    tag = event.sprintf(@tag)
+    
+    # For those cases where %{somefield} doesn't exist
+    # we should ship logs with the default tag value.
+    tag = 'logstash' if /^%{\w+}/.match(tag)
+
+    url = URI.parse("#{@proto}://#{@host}/inputs/#{key}/tag/#{tag}")
     @logger.info("Loggly URL", :url => url)
-
-    http = Net::HTTP::Proxy(@proxy_host,
-                            @proxy_port,
-                            @proxy_user,
-                            @proxy_password.value).new(url.host, url.port)
-
-    if url.scheme == 'https'
-      http.use_ssl = true
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-    end
-
+    
     request = Net::HTTP::Post.new(url.path)
-    request.body = message
+    request.body = format_message(event)
 
     # Variable for count total retries
     totalRetries = 0
@@ -138,7 +136,6 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       @retry_count = 1
     end
 
-    
     @retry_count.times do
     begin
       response = http.request(request)	
@@ -146,7 +143,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 	  
 	    # HTTP_SUCCESS :Code 2xx
 	    when HTTP_SUCCESS					
-	      puts "Event send to Loggly"
+	      @logger.info("Event send to Loggly")
 		  
 		# HTTP_FORBIDDEN :Code 403
 	    when HTTP_FORBIDDEN					
@@ -175,7 +172,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       end # rescue
      
       if totalRetries < @retry_count && totalRetries > 0
-        puts "Waiting for five seconds before retry..."
+        @logger.warn("Waiting for five seconds before retry...")
         sleep(5)
       end
 	  
