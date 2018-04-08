@@ -12,7 +12,7 @@ Net::BufferedIO.class_eval do
     BUFSIZE = 1024 * 16
 
     def rbuf_fill
-      timeout(@read_timeout) {
+      Timeout.timeout(@read_timeout) {
         @rbuf << @io.sysread(BUFSIZE)
       }
     end
@@ -105,6 +105,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
     # Send event
     send_event("#{@proto}://#{@host}/inputs/#{key}/tag/#{tag}", format_message(event))
+
   end # def receive
 
   public
@@ -115,7 +116,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   private
   def send_event(url, message)
     url = URI.parse(url)
-    @logger.info("Loggly URL", :url => url)
+#    @logger.info("Loggly URL", :url => url)
 
     http = Net::HTTP::Proxy(@proxy_host,
                             @proxy_port,
@@ -124,10 +125,10 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
     if url.scheme == 'https'
       http.use_ssl = true
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+#      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     end
 
-    request = Net::HTTP::Post.new(url.path)
+    request = Net::HTTP::Post.new(url.path, initheader = {'Content-Type' =>'application/json'})
     request.body = message
 
     # Variable for count total retries
@@ -146,7 +147,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 	  
 	    # HTTP_SUCCESS :Code 2xx
 	    when HTTP_SUCCESS					
-	      puts "Event send to Loggly"
+	      @logger.info("Sent to Loggly", :tag => @tag)
 		  
 		# HTTP_FORBIDDEN :Code 403
 	    when HTTP_FORBIDDEN					
