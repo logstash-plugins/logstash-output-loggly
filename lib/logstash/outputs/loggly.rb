@@ -1,6 +1,7 @@
 # encoding: utf-8
 require "logstash/outputs/base"
 require "logstash/namespace"
+require "timeout"
 require "uri"
 # TODO(sissel): Move to something that performs better than net/http
 require "net/http"
@@ -12,7 +13,7 @@ Net::BufferedIO.class_eval do
     BUFSIZE = 1024 * 16
 
     def rbuf_fill
-      timeout(@read_timeout) {
+      ::Timeout.timeout(@read_timeout) {
         @rbuf << @io.sysread(BUFSIZE)
       }
     end
