@@ -1,5 +1,14 @@
+## 3.0.5
+  - [#24](https://github.com/logstash-plugins/logstash-output-loggly/pull/24)
+    Get rid of a Ruby warning from using `timeout`.
+  - [#26](https://github.com/logstash-plugins/logstash-output-loggly/pull/26)
+    Docs: Better directions for getting a key in Loggly & other cleanups.
+  - [#26](https://github.com/logstash-plugins/logstash-output-loggly/pull/26)
+    Get rid of a few `puts` and reduce the noise at logging level `info`.
+    There is no longer 1+ log/stdout line created for every event ingested.
+
 ## 3.0.4
-  - Docs: Set the default_codec doc attribute.
+  - Docs: Set the default\_codec doc attribute.
 
 ## 3.0.3
   - Update gemspec summary
