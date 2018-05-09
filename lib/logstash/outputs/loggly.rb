@@ -147,7 +147,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 	  
 	    # HTTP_SUCCESS :Code 2xx
 	    when HTTP_SUCCESS					
-	      puts "Event send to Loggly"
+	      @logger.info("Event send to Loggly")
 		  
 		# HTTP_FORBIDDEN :Code 403
 	    when HTTP_FORBIDDEN					
