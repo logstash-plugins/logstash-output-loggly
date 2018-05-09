@@ -1,3 +1,19 @@
+## 4.0.0
+  - The plugin now uses the Loggly bulk API.
+  - If you need to modify event batch sizes and max delay between flushes,
+    please adjust the Logstash settings `pipeline.batch.size` and
+    `pipeline.batch.delay` respectively.
+  - New settings: `max_event_size` and `max_payload_size`.
+    Both are currently set according to Loggly's [published API limits](https://www.loggly.com/docs/http-bulk-endpoint/).
+    They only need to be changed if Loggly changes these limits.
+  - The plugin now skips events bigger than the API limit for single event size.
+    A proper warning is logged when this happens.
+  - When interpolating `key` field, drop messages where interpolation doesn't
+    resolve (meaning we don't have the API key for the event).
+  - When interpolating `tag` field, revert to default of 'logstash' if interpolation doesn't resolve.
+  - Beef up unit tests significantly.
+  - See pull request [#29](https://github.com/logstash-plugins/logstash-output-loggly/pull/29) for all details.
+
 ## 3.0.5
   - [#24](https://github.com/logstash-plugins/logstash-output-loggly/pull/24)
     Get rid of a Ruby warning from using `timeout`.
