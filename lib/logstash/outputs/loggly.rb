@@ -2,7 +2,6 @@
 require "logstash/outputs/base"
 require "logstash/namespace"
 require "timeout"
-require "stud/buffer"
 require "uri"
 # TODO(sissel): Move to something that performs better than net/http
 require "net/http"
@@ -23,12 +22,11 @@ end
 # Got a loggly account? Use logstash to ship logs to Loggly!
 #
 # This is most useful so you can use logstash to parse and structure
-# your logs and ship structured, json events to your account at Loggly.
+# your logs and ship structured, json events to your Loggly account.
 #
 # To use this, you'll need to use a Loggly input with type 'http'
 # and 'json logging' enabled.
 class LogStash::Outputs::Loggly < LogStash::Outputs::Base
-  include Stud::Buffer
 
   config_name "loggly"
 
@@ -49,15 +47,18 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # Should the log action be sent over https instead of plain http
   config :proto, :validate => :string, :default => "http"
 
-  # Loggly Tag
-  # Tag helps you to find your logs in the Loggly dashboard easily
-  # You can make a search in Loggly using tag as "tag:logstash-contrib"
-  # or the tag set by you in the config file.
+  # Loggly Tags help you to find your logs in the Loggly dashboard easily.
+  # You can search for a tag in Loggly using `"tag:logstash"`.
   #
-  # You can use %{somefield} to allow for custom tag values.
-  # Helpful for leveraging Loggly source groups.
-  # https://www.loggly.com/docs/source-groups/
-  config :tag, :validate => :string, :default => "logstash"
+  # If you need to specify multiple tags here on your events,
+  # specify them as outlined in the tag documentation (https://www.loggly.com/docs/tags/).
+  # E.g. `"tag" => "foo,bar,myApp"`.
+  #
+  # You can also use `"tag" => "%{somefield}"` to take your tag value from `somefield` on your event.
+  # Helpful for leveraging Loggly source groups (https://www.loggly.com/docs/source-groups/).
+
+  DEFAULT_LOGGLY_TAG = 'logstash'
+  config :tag, :validate => :string, :default => DEFAULT_LOGGLY_TAG
 
   # Retry count.
   # It may be possible that the request may timeout due to slow Internet connection
@@ -81,23 +82,19 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # Proxy Password
   config :proxy_password, :validate => :password, :default => ""
 
-  # This plugin uses the bulk index api for improved indexing performance.
-  # To make efficient bulk api calls, we will buffer a certain number of
-  # events before flushing that out to Loggly. This setting
-  # controls how many events will be buffered before sending a batch
-  # of events.
-  config :flush_size, :validate => :number, :default => 100
+  # The Loggly API supports event size up to 1 Mib.
+  # You should only need to change this setting if the
+  # API limits have changed and you need to override the plugin's behaviour.
+  #
+  # See https://www.loggly.com/docs/http-bulk-endpoint/
+  config :max_event_size, :validate => :bytes, :default => '1 Mib', :required => true
 
-  # The amount of time since last flush before a flush is forced.
+  # The Loggly API supports API call payloads up to 5 Mib.
+  # You should only need to change this setting if the
+  # API limits have changed and you need to override the plugin's behaviour.
   #
-  # This setting helps ensure slow event rates don't get stuck in Logstash.
-  # For example, if your `flush_size` is 100, and you have received 10 events,
-  # and it has been more than `idle_flush_time` seconds since the last flush,
-  # logstash will flush those 10 events automatically.
-  #
-  # This helps keep both fast and slow log streams moving along in
-  # near-real-time.
-  config :idle_flush_time, :validate => :number, :default => 1
+  # See https://www.loggly.com/docs/http-bulk-endpoint/
+  config :max_payload_size, :validate => :bytes, :default => '5 Mib', :required => true
 
   # HTTP constants
   HTTP_SUCCESS = "200"
@@ -108,47 +105,114 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
   public
   def register
-    buffer_initialize(
-      :max_items => @flush_size,
-      :max_interval => @idle_flush_time,
-      :logger => @logger
-    )
   end
 
   public
+  def multi_receive(events)
+    send_batch events.collect { |event| prepare_meta(event) }
+  end
+
   def receive(event)
-    return unless output?(event)
+    send_batch [prepare_meta(event)]
+  end
+
+  private
+  # Returns one meta event {key: '...', tag: '...', event: event },
+  # or returns nil, if event's key doesn't resolve.
+  def prepare_meta(event)
     key = event.sprintf(@key)
     tag = event.sprintf(@tag)
 
+    if expected_field = key[/%{(.*)}/, 1]
+      @logger.warn "Skipping sending message to Loggly. No key provided (key='#{key}'). Make sure to set field '#{expected_field}'."
+      @logger.debug "Dropped message", :event => event.to_json
+      return nil
+    end
+
     # For those cases where %{somefield} doesn't exist
     # we should ship logs with the default tag value.
-    tag = 'logstash' if /^%{\w+}/.match(tag)
+    tag = DEFAULT_LOGGLY_TAG if /%{\w+}/.match(tag)
 
-    buffer_receive([event, key, tag])
-  end # def receive
+    meta_event = {  key: key, tag: tag, event: event }
+  end # prepare_meta
 
   public
   def format_message(event)
     event.to_json
   end
 
-  def flush(events, close=false)
-    # Avoid creating a new string for newline every time
-    newline = "\n".freeze
+  # Takes an array of meta_events or nils. Will split the batch in appropriate
+  # sub-batches per key+tag combination (which need to be posted to different URIs).
+  def send_batch(meta_events)
+    split_batches(meta_events.compact).each_pair do |k, batch|
+      key, tag = *k
+      url = "#{@proto}://#{@host}/bulk/#{key}/tag/#{tag}"
 
-    body = events.collect do |event, key, tag|
-      [ format_message(event), newline ]
-    end.flatten
+      build_message_bodies(batch) do |body|
+        perform_api_call url, body
+      end
+    end
+  end
 
-    send_event("#{@proto}://#{@host}/bulk/#{@key}/tag/#{@tag}", body.join(""))
-  end # def receive_bulk
+  # Gets all API calls to the same URI together in common batches.
+  #
+  # Expects an array of meta_events {key: '...', tag: '...', event: event }
+  # Outputs a hash with event batches split out by key+tag combination.
+  #   { [key1, tag1] => [event1, ...],
+  #     [key2, tag1] => [...],
+  #     [key2, tag2] => [...],
+  #     ... }
+  def split_batches(events)
+    events.reduce( Hash.new { |h,k| h[k] = [] } ) do |acc, meta_event|
+      key = meta_event[:key]
+      tag = meta_event[:tag]
+      acc[ [key, tag] ] << meta_event[:event]
+      acc
+    end
+  end
 
+  # Concatenates JSON events to build an API call body.
+  #
+  # Will yield before going over the body size limit. May yield more than once.
+  #
+  # This is also where we check that each message respects the message size,
+  # and where we skip those if they don't.
+  def build_message_bodies(events)
+    body = ''
+    event_count = 0
+
+    events.each do |event|
+      encoded_event = format_message(event)
+      event_size = encoded_event.bytesize
+
+      if event_size > @max_event_size
+        @logger.warn "Skipping event over max event size",
+          :event_size => encoded_event.bytesize, :max_event_size => @max_event_size
+        @logger.debug "Skipped event", :event => encoded_event
+        next
+      end
+
+      if body.bytesize + 1 + event_size > @max_payload_size
+        @logger.debug "Flushing events to Loggly", count: event_count, bytes: body.bytesize
+        yield body
+        body = ''
+        event_count = 0
+      end
+
+      body << "\n" unless body.bytesize.zero?
+      body << encoded_event
+      event_count += 1
+    end
+
+    if event_count > 0
+      @logger.debug "Flushing events to Loggly", count: event_count, bytes: body.bytesize
+      yield body
+    end
+  end
 
   private
-  def send_event(url, message)
+  def perform_api_call(url, message)
     url = URI.parse(url)
-    @logger.debug("Loggly URL", :url => url)
 
     http = Net::HTTP::Proxy(@proxy_host,
                             @proxy_port,
@@ -175,11 +239,13 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     @retry_count.times do
       begin
         response = http.request(request)
+        @logger.debug("Loggly response", code: response.code, body: response.body)
+
         case response.code
 
         # HTTP_SUCCESS :Code 2xx
         when HTTP_SUCCESS
-          @logger.debug("Event sent to Loggly")
+          @logger.debug("Event batch sent successfully")
 
         # HTTP_FORBIDDEN :Code 403
         when HTTP_FORBIDDEN
@@ -187,7 +253,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
         # HTTP_NOT_FOUND :Code 404
         when HTTP_NOT_FOUND
-          @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/logstash")
+          @logger.warn("Invalid URL. Please check URL should be http://logs-01.loggly.com/inputs/CUSTOMER_TOKEN/tag/TAG", :url => url.to_s)
 
         # HTTP_INTERNAL_SERVER_ERROR :Code 500
         when HTTP_INTERNAL_SERVER_ERROR
@@ -216,9 +282,5 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       totalRetries = totalRetries + 1
     end #loop
   end # def send_event
-
-  def close
-    buffer_flush(:final => true)
-  end # def close
 
 end # class LogStash::Outputs::Loggly
