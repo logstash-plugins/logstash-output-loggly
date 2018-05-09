@@ -81,13 +81,9 @@ https://www.loggly.com/docs/http-endpoint/
   * Value type is <<string,string>>
   * There is no default value for this setting.
 
-The loggly http input key to send to.
-This is usually visible in the Loggly 'Inputs' page as something like this:
-....
-    https://logs-01.loggly.net/inputs/abcdef12-3456-7890-abcd-ef0123456789
-                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                                          \---------->   key   <-------------/
-....
+The loggly http customer token to use for sending.
+You can find yours in "Source Setup", under "Customer Tokens".
+
 You can use `%{foo}` field lookups here if you need to pull the api key from
 the event. This is mainly aimed at multitenant hosting providers who want
 to offer shipping a customer's logs to that customer's loggly account.

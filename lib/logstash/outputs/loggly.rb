@@ -35,13 +35,9 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # https://www.loggly.com/docs/http-endpoint/
   config :host, :validate => :string, :default => "logs-01.loggly.com"
 
-  # The loggly http input key to send to.
-  # This is usually visible in the Loggly 'Inputs' page as something like this:
-  # ....
-  #     https://logs-01.loggly.net/inputs/abcdef12-3456-7890-abcd-ef0123456789
-  #                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  #                                           \---------->   key   <-------------/
-  # ....
+  # The loggly http customer token to use for sending.
+  # You can find yours in "Source Setup", under "Customer Tokens".
+  #
   # You can use `%{foo}` field lookups here if you need to pull the api key from
   # the event. This is mainly aimed at multitenant hosting providers who want
   # to offer shipping a customer's logs to that customer's loggly account.
@@ -116,7 +112,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   private
   def send_event(url, message)
     url = URI.parse(url)
-    @logger.info("Loggly URL", :url => url)
+    @logger.debug("Loggly URL", :url => url)
 
     http = Net::HTTP::Proxy(@proxy_host,
                             @proxy_port,
@@ -128,7 +124,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     end
 
-    request = Net::HTTP::Post.new(url.path)
+    request = Net::HTTP::Post.new(url.path, {'Content-Type' =>'application/json'})
     request.body = message
 
     # Variable for count total retries
