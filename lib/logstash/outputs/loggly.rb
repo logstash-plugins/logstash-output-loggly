@@ -176,7 +176,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       end # rescue
 
       if totalRetries < @retry_count && totalRetries > 0
-        puts "Waiting for five seconds before retry..."
+        @logger.warn "Waiting for five seconds before retry..."
         sleep(5)
       end
 
