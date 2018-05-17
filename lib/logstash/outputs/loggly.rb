@@ -113,6 +113,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
   public
   def register
+    @logger.debug "Initializing Loggly Output", @config
   end
 
   public
