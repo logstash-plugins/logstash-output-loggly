@@ -1,3 +1,12 @@
+## 4.1.0
+  - The plugin now sets field `timestamp` so that Loggly will recognize the
+    correct timestamp.
+    - The event's timestamps will however not be touched at all if `timestamp`
+      is already set on the event or if `@timestamp` is missing.
+  - This version introduces attribute `convert_timestamp` (default true), which
+    triggers the timestamp mingling.
+  - Now log a debug message with all of the plugin's configuration upon initialization.
+
 ## 4.0.0
   - The plugin now uses the Loggly bulk API.
   - If you need to modify event batch sizes and max delay between flushes,
