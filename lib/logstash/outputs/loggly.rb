@@ -1,6 +1,7 @@
 # encoding: utf-8
 require "logstash/outputs/base"
 require "logstash/namespace"
+require "json"
 require "timeout"
 require "uri"
 # TODO(sissel): Move to something that performs better than net/http
@@ -29,6 +30,13 @@ end
 class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
   config_name "loggly"
+
+  # Rename Logstash's '@timestamp' field to 'timestamp' before sending,
+  # so that Loggly recognizes it automatically.
+  #
+  # This will do nothing if your event doesn't have a '@timestamp' field or if
+  # your event already has a 'timestamp' field.
+  config :convert_timestamp, :validate => :boolean, :default => true
 
   # The hostname to send logs to. This should target the loggly http input
   # server which is usually "logs-01.loggly.com" (Gen2 account).
@@ -133,7 +141,12 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     # we should ship logs with the default tag value.
     tag = DEFAULT_LOGGLY_TAG if /%{\w+}/.match(tag)
 
-    meta_event = {  key: key, tag: tag, event: event }
+    event_hash = event.to_hash # Don't want to modify the event in an output
+    if @convert_timestamp && event_hash['@timestamp'] && !event_hash['timestamp']
+      event_hash['timestamp'] = event_hash.delete('@timestamp')
+    end
+
+    meta_event = {  key: key, tag: tag, event: event_hash }
   end # prepare_meta
 
   public
