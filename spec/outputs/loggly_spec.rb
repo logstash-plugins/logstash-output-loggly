@@ -109,6 +109,48 @@ describe 'outputs/loggly' do
         output.multi_receive([event1, event2, event3, event4])
       end
     end
+
+    context 'timestamp mingling' do
+      context 'when convert_timestamp is false' do
+        let(:config) { super.merge('convert_timestamp' => false) }
+
+        it 'should not create a timestamp field nor delete @timestamp' do
+          expected_time = event.get('@timestamp')
+          meta_event = output.send :prepare_meta, event
+
+          expect(meta_event[:event]['@timestamp']).to eq(expected_time)
+          expect(meta_event[:event]['timestamp']).to be_nil
+        end
+      end
+
+      context 'when convert_timestamp is true' do
+        let(:config) { super.merge('convert_timestamp' => true) }
+
+        it 'should rename @timestamp to timestamp in the normal case' do
+          expected_time = event.get('@timestamp')
+          meta_event = output.send :prepare_meta, event
+
+          expect(meta_event[:event]['timestamp']).to eq(expected_time)
+          expect(meta_event[:event]['@timestamp']).to be_nil
+        end
+
+        it 'should not overwrite an existing timestamp field' do
+          event.set('timestamp', "no tocar")
+          meta_event = output.send :prepare_meta, event
+
+          expect(meta_event[:event]['timestamp']).to  eq('no tocar')
+          expect(meta_event[:event]['@timestamp']).to eq(event.get('@timestamp'))
+        end
+
+        it 'should not attempt to set timestamp if the event has no @timestamp' do
+          event.remove('@timestamp')
+          meta_event = output.send :prepare_meta, event
+
+          expect(meta_event[:event]['timestamp']).to  be_nil
+          expect(meta_event[:event]['@timestamp']).to be_nil
+        end
+      end
+    end
   end
 
   context 'splitting batches of events' do
