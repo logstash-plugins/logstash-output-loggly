@@ -36,6 +36,9 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   #
   # This will do nothing if your event doesn't have a '@timestamp' field or if
   # your event already has a 'timestamp' field.
+  #
+  # Note that the actual Logstash event is not modified by the output. This
+  # modification only happens on a copy of the event, prior to sending.
   config :convert_timestamp, :validate => :boolean, :default => true
 
   # The hostname to send logs to. This should target the loggly http input
