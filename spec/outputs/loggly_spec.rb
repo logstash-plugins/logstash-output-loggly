@@ -7,7 +7,7 @@ def logger_for(plugin)
 end
 
 describe 'outputs/loggly' do
-  let(:config) { { 'key' => 'abcdef123456' } }
+  let(:config) { { 'key' => 'abcdef123456', 'convert_timestamp' => false } }
 
   let(:output) do
     LogStash::Outputs::Loggly.new(config).tap do |output|
@@ -41,7 +41,7 @@ describe 'outputs/loggly' do
 
   context 'when sending events' do
     it 'should set the default tag to logstash' do
-      expect(output).to receive(:send_batch).with([{event: event, key: 'abcdef123456', tag: 'logstash'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: 'logstash'}])
       output.receive(event)
     end
 
@@ -50,19 +50,19 @@ describe 'outputs/loggly' do
       event.set('token', 'xxxxxxx1234567')
       config['key'] = '%{token}'
 
-      expect(output).to receive(:send_batch).with([{event: event, key: 'xxxxxxx1234567', tag: 'logstash'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'xxxxxxx1234567', tag: 'logstash'}])
       output.receive(event)
     end
 
     it 'should support field interpolation for tag' do
       config['tag'] = '%{source}'
-      expect(output).to receive(:send_batch).with([{event: event, key: 'abcdef123456', tag: 'someapp'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: 'someapp'}])
       output.receive(event)
     end
 
     it 'should default tag to logstash if interpolated field for tag does not exist' do
       config['tag'] = '%{foobar}'
-      expect(output).to receive(:send_batch).with([{event: event, key: 'abcdef123456', tag: 'logstash'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: 'logstash'}])
       output.receive(event)
     end
 
@@ -72,7 +72,7 @@ describe 'outputs/loggly' do
       event2 = event.clone
       event2.remove('custom_key')
 
-      expect(output).to receive(:send_batch).once.with([{event: event, key: 'a_key', tag: 'logstash'}, nil])
+      expect(output).to receive(:send_batch).once.with([{event: event.to_hash, key: 'a_key', tag: 'logstash'}, nil])
       logger = logger_for(output)
       expect(logger).to receive(:warn).with(/No key provided/)
       expect(logger).to receive(:debug).with(/Dropped message/, kind_of(Hash))
