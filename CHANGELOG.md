@@ -1,10 +1,15 @@
-## 4.1.0
-  - The plugin now sets field `timestamp` so that Loggly will recognize the
-    correct timestamp.
-    - The event's timestamps will however not be touched at all if `timestamp`
-      is already set on the event or if `@timestamp` is missing.
-  - This version introduces attribute `convert_timestamp` (default true), which
-    triggers the timestamp mingling.
+## 5.0.0
+  - This version introduces "breaking" changes for users who never copied/renamed
+    their `@timestamp` field to `timestamp`: their events will suddenly appear
+    in Loggly with a `timestamp` based on Logstash's value of `@timestamp`.
+    This would especially be noticed at times where processing is behind, and
+    events need to be "backfilled".
+    - The plugin now sets field `timestamp` so that Loggly will recognize the
+      correct timestamp.
+      - The event's timestamps will however not be touched at all if `timestamp`
+        is already set on the event or if `@timestamp` is missing.
+    - This version introduces attribute `convert_timestamp` (defaults to true), which
+      triggers the timestamp mingling.
   - Now log a debug message with all of the plugin's configuration upon initialization.
 
 ## 4.0.0
