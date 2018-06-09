@@ -140,6 +140,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 	
 	tags.each do |t|
 		t = event.sprintf(t)
+		# For those cases where %{somefield} doesn't exist we should ship logs with the default tag value.
 		t = DEFAULT_LOGGLY_TAG if /%{\w+}/.match(t)
 		tag_array.push(t)
 	end
@@ -152,8 +153,6 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       return nil
     end
 
-    # For those cases where %{somefield} doesn't exist
-    # we should ship logs with the default tag value.
     tag=tag_array.join(",")
 
     event_hash = event.to_hash # Don't want to modify the event in an output
