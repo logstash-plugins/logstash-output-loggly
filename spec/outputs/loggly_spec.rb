@@ -7,7 +7,7 @@ def logger_for(plugin)
 end
 
 describe 'outputs/loggly' do
-  let(:config) { { 'key' => 'abcdef123456' } }
+  let(:config) { { 'key' => 'abcdef123456', 'convert_timestamp' => false } }
 
   let(:output) do
     LogStash::Outputs::Loggly.new(config).tap do |output|
@@ -41,7 +41,7 @@ describe 'outputs/loggly' do
 
   context 'when sending events' do
     it 'should set the default tag to logstash' do
-      expect(output).to receive(:send_batch).with([{event: event, key: 'abcdef123456', tag: 'logstash'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: 'logstash'}])
       output.receive(event)
     end
 
@@ -50,19 +50,19 @@ describe 'outputs/loggly' do
       event.set('token', 'xxxxxxx1234567')
       config['key'] = '%{token}'
 
-      expect(output).to receive(:send_batch).with([{event: event, key: 'xxxxxxx1234567', tag: 'logstash'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'xxxxxxx1234567', tag: 'logstash'}])
       output.receive(event)
     end
 
     it 'should support field interpolation for tag' do
       config['tag'] = '%{source}'
-      expect(output).to receive(:send_batch).with([{event: event, key: 'abcdef123456', tag: 'someapp'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: 'someapp'}])
       output.receive(event)
     end
 
     it 'should default tag to logstash if interpolated field for tag does not exist' do
       config['tag'] = '%{foobar}'
-      expect(output).to receive(:send_batch).with([{event: event, key: 'abcdef123456', tag: 'logstash'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: 'logstash'}])
       output.receive(event)
     end
 
@@ -72,7 +72,7 @@ describe 'outputs/loggly' do
       event2 = event.clone
       event2.remove('custom_key')
 
-      expect(output).to receive(:send_batch).once.with([{event: event, key: 'a_key', tag: 'logstash'}, nil])
+      expect(output).to receive(:send_batch).once.with([{event: event.to_hash, key: 'a_key', tag: 'logstash'}, nil])
       logger = logger_for(output)
       expect(logger).to receive(:warn).with(/No key provided/)
       expect(logger).to receive(:debug).with(/Dropped message/, kind_of(Hash))
@@ -107,6 +107,48 @@ describe 'outputs/loggly' do
         expect(output).not_to receive(:perform_api_call) # anymore
 
         output.multi_receive([event1, event2, event3, event4])
+      end
+    end
+
+    context 'timestamp mingling' do
+      context 'when convert_timestamp is false' do
+        let(:config) { super.merge('convert_timestamp' => false) }
+
+        it 'should not create a timestamp field nor delete @timestamp' do
+          expected_time = event.get('@timestamp')
+          meta_event = output.send :prepare_meta, event
+
+          expect(meta_event[:event]['@timestamp']).to eq(expected_time)
+          expect(meta_event[:event]['timestamp']).to be_nil
+        end
+      end
+
+      context 'when convert_timestamp is true' do
+        let(:config) { super.merge('convert_timestamp' => true) }
+
+        it 'should rename @timestamp to timestamp in the normal case' do
+          expected_time = event.get('@timestamp')
+          meta_event = output.send :prepare_meta, event
+
+          expect(meta_event[:event]['timestamp']).to eq(expected_time)
+          expect(meta_event[:event]['@timestamp']).to be_nil
+        end
+
+        it 'should not overwrite an existing timestamp field' do
+          event.set('timestamp', "no tocar")
+          meta_event = output.send :prepare_meta, event
+
+          expect(meta_event[:event]['timestamp']).to  eq('no tocar')
+          expect(meta_event[:event]['@timestamp']).to eq(event.get('@timestamp'))
+        end
+
+        it 'should not attempt to set timestamp if the event has no @timestamp' do
+          event.remove('@timestamp')
+          meta_event = output.send :prepare_meta, event
+
+          expect(meta_event[:event]['timestamp']).to  be_nil
+          expect(meta_event[:event]['@timestamp']).to be_nil
+        end
       end
     end
   end
