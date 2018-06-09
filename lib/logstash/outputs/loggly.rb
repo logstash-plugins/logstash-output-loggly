@@ -70,6 +70,8 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # Setting this value true helps user to send multiple retry attempts if the first request fails
   config :can_retry, :validate => :boolean, :default => true
 
+  config :mime_type, :validate => :string, :default => 'application/json'
+	
   # Proxy Host
   config :proxy_host, :validate => :string
 
@@ -121,7 +123,16 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # or returns nil, if event's key doesn't resolve.
   def prepare_meta(event)
     key = event.sprintf(@key)
-    tag = event.sprintf(@tag)
+	tags=@tag.split(",")
+	tag_array = []
+	
+	tags.each do |t|
+		t = event.sprintf(t)
+		t = DEFAULT_LOGGLY_TAG if /%{\w+}/.match(t)
+		tag_array.push(t)
+	end
+	
+	
 
     if expected_field = key[/%{(.*)}/, 1]
       @logger.warn "Skipping sending message to Loggly. No key provided (key='#{key}'). Make sure to set field '#{expected_field}'."
@@ -131,7 +142,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
 
     # For those cases where %{somefield} doesn't exist
     # we should ship logs with the default tag value.
-    tag = DEFAULT_LOGGLY_TAG if /%{\w+}/.match(tag)
+    tag=tag_array.join(",")
 
     meta_event = {  key: key, tag: tag, event: event }
   end # prepare_meta
@@ -224,7 +235,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     end
 
-    request = Net::HTTP::Post.new(url.path, {'Content-Type' =>'application/json'})
+    request = Net::HTTP::Post.new(url.path, {'Content-Type' =>@mime_type})
     request.body = message
 
     # Variable for count total retries
