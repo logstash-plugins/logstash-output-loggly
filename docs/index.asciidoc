@@ -189,16 +189,17 @@ It will try to submit request until retry_count and then halt
 ===== `tag` 
 
   * Value type is <<string,string>>
-  * Default value is `"logstash"`
 
 Loggly Tags help you to find your logs in the Loggly dashboard easily.
-You can search for a tag in Loggly using `"tag:logstash"`.
+You can search for a tag in Loggly, using `"tag:your_tag"`.
 
 If you need to specify multiple tags here on your events,
 specify them as outlined in https://www.loggly.com/docs/tags/[the tag documentation].
 E.g. `"tag" => "foo,bar,myApp"`.
 
-You can also use `"tag" => "%{somefield}"` to take your tag value from `somefield` on your event.
+You can also use `"tag" => "%{somefield},%{another_field}"` to take your tag values
+from `somefield` and `another_field` on your event. If the field doesn't exist,
+no tag will be created.
 Helpful for leveraging https://www.loggly.com/docs/source-groups/[Loggly source groups].
 
 

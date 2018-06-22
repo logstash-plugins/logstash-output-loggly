@@ -59,17 +59,18 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   config :proto, :validate => :string, :default => "http"
 
   # Loggly Tags help you to find your logs in the Loggly dashboard easily.
-  # You can search for a tag in Loggly using `"tag:logstash"`.
+  # You can search for a tag in Loggly using `"tag:your_tag"`.
   #
   # If you need to specify multiple tags here on your events,
   # specify them as outlined in the tag documentation (https://www.loggly.com/docs/tags/).
   # E.g. `"tag" => "foo,bar,myApp"`.
   #
-  # You can also use `"tag" => "%{somefield}"` to take your tag value from `somefield` on your event.
+  # You can also use `"tag" => "%{somefield},%{another_field}"` to take your tag values
+  # from `somefield` and `another_field` on your event. If the field doesn't exist,
+  # no tag will be created.
   # Helpful for leveraging Loggly source groups (https://www.loggly.com/docs/source-groups/).
 
-  DEFAULT_LOGGLY_TAG = 'logstash'
-  config :tag, :validate => :string, :default => DEFAULT_LOGGLY_TAG
+  config :tag, :validate => :string, :default => ''
 
   # Retry count.
   # It may be possible that the request may timeout due to slow Internet connection
@@ -135,17 +136,16 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # or returns nil, if event's key doesn't resolve.
   def prepare_meta(event)
     key = event.sprintf(@key)
-	tags=@tag.split(",")
-	tag_array = []
-	
-	tags.each do |t|
-		t = event.sprintf(t)
-		# For those cases where %{somefield} doesn't exist we should ship logs with the default tag value.
-		t = DEFAULT_LOGGLY_TAG if /%{\w+}/.match(t)
-		tag_array.push(t)
-	end
-	
-	
+    tags=@tag.split(",")
+    tag_array = []
+
+    tags.each do |t|
+      t = event.sprintf(t)
+      # For those cases where %{somefield} doesn't exist we don't include it
+      if !/%{\w+}/.match(t)
+        tag_array.push(t)
+      end
+    end
 
     if expected_field = key[/%{(.*)}/, 1]
       @logger.warn "Skipping sending message to Loggly. No key provided (key='#{key}'). Make sure to set field '#{expected_field}'."
@@ -153,7 +153,10 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       return nil
     end
 
-    tag=tag_array.join(",")
+    tag = nil
+    unless tag_array.empty?
+      tag = tag_array.uniq.join(",")
+    end
 
     event_hash = event.to_hash # Don't want to modify the event in an output
     if @convert_timestamp && event_hash['@timestamp'] && !event_hash['timestamp']
@@ -173,7 +176,12 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   def send_batch(meta_events)
     split_batches(meta_events.compact).each_pair do |k, batch|
       key, tag = *k
-      url = "#{@proto}://#{@host}/bulk/#{key}/tag/#{tag}"
+      if tag != nil
+        url = "#{@proto}://#{@host}/bulk/#{key}/tag/#{tag}"
+      else
+        url = "#{@proto}://#{@host}/bulk/#{key}"
+      end
+
 
       build_message_bodies(batch) do |body|
         perform_api_call url, body
@@ -251,7 +259,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       http.verify_mode = OpenSSL::SSL::VERIFY_NONE
     end
 
-    request = Net::HTTP::Post.new(url.path, {'Content-Type' =>@mime_type})
+    request = Net::HTTP::Post.new(url.path, {'Content-Type' => @mime_type})
     request.body = message
 
     # Variable for count total retries
