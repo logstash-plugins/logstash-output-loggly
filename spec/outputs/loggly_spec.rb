@@ -40,6 +40,10 @@ describe 'outputs/loggly' do
   end
 
   context 'when sending events' do
+    it 'should set the default tag to nil' do
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: nil}])
+      output.receive(event)
+    end
 
     it 'should support field interpolation on key' do
       # add a custom key value for Loggly config
@@ -56,7 +60,7 @@ describe 'outputs/loggly' do
       output.receive(event)
     end
 
-    it 'should send no tag to logstash if interpolated field for tag does not exist' do
+    it 'should have no tag if the interpolated field for the tag does not exist' do
       config['tag'] = '%{foobar}'
       expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: nil}])
       output.receive(event)
@@ -106,8 +110,8 @@ describe 'outputs/loggly' do
       end
     end
 
-    context 'prepare tags' do
-      it 'failed interpolation' do
+    context 'when computing the tags' do
+      it 'should not leave a failed interpolation in the tag list' do
         config['tag']  =  '%{field1},%{field2}'
         event.set('field1', 'some_value1')
 
@@ -115,14 +119,14 @@ describe 'outputs/loggly' do
         expect(meta_event[:tag]).to eq('some_value1')
       end
 
-      it 'no interpolation' do
+      it 'should support no interpolation' do
         config['tag']  =  'some_tag'
 
         meta_event = output.send :prepare_meta, event
         expect(meta_event[:tag]).to eq('some_tag')
       end
 
-      it 'interpolation of one tag' do
+      it 'should support interpolation of one tag' do
         config['tag']  =  '%{field1}'
         event.set('field1', 'some_value1')
 
@@ -130,7 +134,7 @@ describe 'outputs/loggly' do
         expect(meta_event[:tag]).to eq('some_value1')
       end
 
-      it 'interpolation of one tag in a list of tags' do
+      it 'should support interpolation of one tag in a list of tags' do
         config['tag']  =  '%{field1},some_value2'
         event.set('field1', 'some_value1')
 
@@ -138,11 +142,19 @@ describe 'outputs/loggly' do
         expect(meta_event[:tag]).to eq('some_value1,some_value2')
       end
 
-      it 'duplicate tags are deduped' do
+      it 'should remove duplicate tags' do
         config['tag']  =  'some_value,some_value'
 
         meta_event = output.send :prepare_meta, event
         expect(meta_event[:tag]).to eq('some_value')
+      end
+
+      it 'should remove tag if field interpolated to empty string' do
+        config['tag']  =  '%{field1}'
+        event.set('field1', '')
+
+        meta_event = output.send :prepare_meta, event
+        expect(meta_event[:tag]).to eq(nil)
       end
     end
 

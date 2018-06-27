@@ -136,13 +136,13 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   # or returns nil, if event's key doesn't resolve.
   def prepare_meta(event)
     key = event.sprintf(@key)
-    tags=@tag.split(",")
+    tags = @tag.split(",")
     tag_array = []
 
     tags.each do |t|
       t = event.sprintf(t)
       # For those cases where %{somefield} doesn't exist we don't include it
-      if !/%{\w+}/.match(t)
+      unless /%{\w+}/.match(t) || t.blank?
         tag_array.push(t)
       end
     end
@@ -153,7 +153,6 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
       return nil
     end
 
-    tag = nil
     unless tag_array.empty?
       tag = tag_array.uniq.join(",")
     end
@@ -176,10 +175,10 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
   def send_batch(meta_events)
     split_batches(meta_events.compact).each_pair do |k, batch|
       key, tag = *k
-      if tag != nil
-        url = "#{@proto}://#{@host}/bulk/#{key}/tag/#{tag}"
-      else
+      if tag.nil?
         url = "#{@proto}://#{@host}/bulk/#{key}"
+      else
+        url = "#{@proto}://#{@host}/bulk/#{key}/tag/#{tag}"
       end
 
 
