@@ -1,7 +1,8 @@
 ## 6.0.0
-  - Improve support for multiple tags with interpolation.
+  - Fixed bug when interpolation fails in a list of tag. The list of tags no
+    longer gets completely replaced with a default value.
     [#31](https://github.com/logstash-plugins/logstash-output-loggly/pull/31)
-  - No longer set a tag by default. The tag is optional with Loggly.
+  - Changed tagging to no longer set a tag by default. The tag is optional with Loggly.
     [#31](https://github.com/logstash-plugins/logstash-output-loggly/pull/31)
 
 ## 5.0.0
