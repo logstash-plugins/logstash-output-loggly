@@ -1,3 +1,9 @@
+## 6.0.0
+  - Improve support for multiple tags with interpolation.
+    [#31](https://github.com/logstash-plugins/logstash-output-loggly/pull/31)
+  - No longer set a tag by default. The tag is optional with Loggly.
+    [#31](https://github.com/logstash-plugins/logstash-output-loggly/pull/31)
+
 ## 5.0.0
   - This version introduces "breaking" changes for users who never copied/renamed
     their `@timestamp` field to `timestamp`: their events will suddenly appear
