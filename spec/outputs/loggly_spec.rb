@@ -33,15 +33,15 @@ describe 'outputs/loggly' do
     it 'should have default config values' do
       expect(subject.proto).to eq('http')
       expect(subject.host).to eq('logs-01.loggly.com')
-      expect(subject.tag).to eq('logstash')
+      expect(subject.tag).to eq('')
       expect(subject.max_event_size).to eq(1_048_576)
       expect(subject.max_payload_size).to eq(5_242_880)
     end
   end
 
   context 'when sending events' do
-    it 'should set the default tag to logstash' do
-      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: 'logstash'}])
+    it 'should set the default tag to nil' do
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: nil}])
       output.receive(event)
     end
 
@@ -50,7 +50,7 @@ describe 'outputs/loggly' do
       event.set('token', 'xxxxxxx1234567')
       config['key'] = '%{token}'
 
-      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'xxxxxxx1234567', tag: 'logstash'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'xxxxxxx1234567', tag: nil}])
       output.receive(event)
     end
 
@@ -60,9 +60,9 @@ describe 'outputs/loggly' do
       output.receive(event)
     end
 
-    it 'should default tag to logstash if interpolated field for tag does not exist' do
+    it 'should have no tag if the interpolated field for the tag does not exist' do
       config['tag'] = '%{foobar}'
-      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: 'logstash'}])
+      expect(output).to receive(:send_batch).with([{event: event.to_hash, key: 'abcdef123456', tag: nil}])
       output.receive(event)
     end
 
@@ -72,7 +72,7 @@ describe 'outputs/loggly' do
       event2 = event.clone
       event2.remove('custom_key')
 
-      expect(output).to receive(:send_batch).once.with([{event: event.to_hash, key: 'a_key', tag: 'logstash'}, nil])
+      expect(output).to receive(:send_batch).once.with([{event: event.to_hash, key: 'a_key', tag: nil}, nil])
       logger = logger_for(output)
       expect(logger).to receive(:warn).with(/No key provided/)
       expect(logger).to receive(:debug).with(/Dropped message/, kind_of(Hash))
@@ -94,11 +94,11 @@ describe 'outputs/loggly' do
         expect(output).to receive(:perform_api_call) { |url, body|
           expect(body).to match /"event1"/
           expect(body).to match /"event4"/
-          expect(url).to eq('http://logs-01.loggly.com/bulk/generally_used_key/tag/logstash')
+          expect(url).to eq('http://logs-01.loggly.com/bulk/generally_used_key')
         }
         expect(output).to receive(:perform_api_call) { |url, body|
           expect(body).to match /"event2"/
-          expect(url).to eq('http://logs-01.loggly.com/bulk/other_key/tag/logstash')
+          expect(url).to eq('http://logs-01.loggly.com/bulk/other_key')
         }
         expect(output).to receive(:perform_api_call) { |url, body|
           expect(body).to match /"event3"/
@@ -107,6 +107,54 @@ describe 'outputs/loggly' do
         expect(output).not_to receive(:perform_api_call) # anymore
 
         output.multi_receive([event1, event2, event3, event4])
+      end
+    end
+
+    context 'when computing the tags' do
+      it 'should not leave a failed interpolation in the tag list' do
+        config['tag']  =  '%{field1},%{field2}'
+        event.set('field1', 'some_value1')
+
+        meta_event = output.send :prepare_meta, event
+        expect(meta_event[:tag]).to eq('some_value1')
+      end
+
+      it 'should support no interpolation' do
+        config['tag']  =  'some_tag'
+
+        meta_event = output.send :prepare_meta, event
+        expect(meta_event[:tag]).to eq('some_tag')
+      end
+
+      it 'should support interpolation of one tag' do
+        config['tag']  =  '%{field1}'
+        event.set('field1', 'some_value1')
+
+        meta_event = output.send :prepare_meta, event
+        expect(meta_event[:tag]).to eq('some_value1')
+      end
+
+      it 'should support interpolation of one tag in a list of tags' do
+        config['tag']  =  '%{field1},some_value2'
+        event.set('field1', 'some_value1')
+
+        meta_event = output.send :prepare_meta, event
+        expect(meta_event[:tag]).to eq('some_value1,some_value2')
+      end
+
+      it 'should remove duplicate tags' do
+        config['tag']  =  'some_value,some_value'
+
+        meta_event = output.send :prepare_meta, event
+        expect(meta_event[:tag]).to eq('some_value')
+      end
+
+      it 'should remove tag if field interpolated to empty string' do
+        config['tag']  =  '%{field1}'
+        event.set('field1', '')
+
+        meta_event = output.send :prepare_meta, event
+        expect(meta_event[:tag]).to eq(nil)
       end
     end
 
@@ -173,14 +221,21 @@ describe 'outputs/loggly' do
           {event: :event5, key: 'key2', tag: 'tag1'},
           {event: :event6, key: 'key1', tag: 'tag1'},
           {event: :event7, key: 'key1', tag: 'tag1'},
+          {event: :event8, key: 'key1', tag: 'tag1,tag2'},
+          {event: :event9, key: 'key2', tag: 'tag1,tag2'},
         ])
-        expect(batches.size).to eq(3)
+        expect(batches.size).to eq(5)
         expect(batches).to eq(
           { ['key1', 'tag1'] => [:event1, :event4, :event6, :event7],
             ['key2', 'tag1'] => [:event2, :event5],
             ['key2', 'tag2'] => [:event3],
+            ['key1', 'tag1,tag2'] => [:event8],
+            ['key2', 'tag1,tag2'] => [:event9],
           })
       end
+
+
+
     end
   end
 
