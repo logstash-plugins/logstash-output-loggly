@@ -1,5 +1,13 @@
+## 6.0.0
+  - Fixed bug when interpolation fails in a list of tag. The list of tags no
+    longer gets completely replaced with a default value.
+    [#31](https://github.com/logstash-plugins/logstash-output-loggly/pull/31)
+  - [BREAKING] Changed tagging to no longer set a tag by default.
+    The tag is optional with Loggly.
+    [#31](https://github.com/logstash-plugins/logstash-output-loggly/pull/31)
+
 ## 5.0.0
-  - This version introduces "breaking" changes for users who never copied/renamed
+  - [BREAKING] This version introduces "breaking" changes for users who never copied/renamed
     their `@timestamp` field to `timestamp`: their events will suddenly appear
     in Loggly with a `timestamp` based on Logstash's value of `@timestamp`.
     This would especially be noticed at times where processing is behind, and
@@ -20,9 +28,9 @@
   - New settings: `max_event_size` and `max_payload_size`.
     Both are currently set according to Loggly's [published API limits](https://www.loggly.com/docs/http-bulk-endpoint/).
     They only need to be changed if Loggly changes these limits.
-  - The plugin now skips events bigger than the API limit for single event size.
+  - [BREAKING] The plugin now skips events bigger than the API limit for single event size.
     A proper warning is logged when this happens.
-  - When interpolating `key` field, drop messages where interpolation doesn't
+  - [BREAKING] When interpolating `key` field, drop messages where interpolation doesn't
     resolve (meaning we don't have the API key for the event).
   - When interpolating `tag` field, revert to default of 'logstash' if interpolation doesn't resolve.
   - Beef up unit tests significantly.
