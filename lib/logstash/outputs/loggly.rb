@@ -142,7 +142,7 @@ class LogStash::Outputs::Loggly < LogStash::Outputs::Base
     tags.each do |t|
       t = event.sprintf(t)
       # For those cases where %{somefield} doesn't exist we don't include it
-      unless /%{\w+}/.match(t) || t.blank?
+      unless /%{\w+}/.match(t) || t.empty?
         tag_array.push(t)
       end
     end
