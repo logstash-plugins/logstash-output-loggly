@@ -4,7 +4,7 @@ This plugin needs maintainers, please comment on https://github.com/logstash-plu
 
 # Logstash Plugin
 
-[![Travis Build Status](https://travis-ci.org/logstash-plugins/logstash-output-loggly.svg)](https://travis-ci.org/logstash-plugins/logstash-output-loggly)
+[![Travis Build Status](https://travis-ci.com/logstash-plugins/logstash-output-loggly.svg)](https://travis-ci.com/logstash-plugins/logstash-output-loggly)
 
 This is a plugin for [Logstash](https://github.com/elastic/logstash).
 
