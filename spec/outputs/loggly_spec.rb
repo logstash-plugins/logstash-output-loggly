@@ -160,7 +160,7 @@ describe 'outputs/loggly' do
 
     context 'timestamp mingling' do
       context 'when convert_timestamp is false' do
-        let(:config) { super.merge('convert_timestamp' => false) }
+        let(:config) { super().merge('convert_timestamp' => false) }
 
         it 'should not create a timestamp field nor delete @timestamp' do
           expected_time = event.get('@timestamp')
@@ -172,7 +172,7 @@ describe 'outputs/loggly' do
       end
 
       context 'when convert_timestamp is true' do
-        let(:config) { super.merge('convert_timestamp' => true) }
+        let(:config) { super().merge('convert_timestamp' => true) }
 
         it 'should rename @timestamp to timestamp in the normal case' do
           expected_time = event.get('@timestamp')
